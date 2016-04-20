@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <link href='http://fonts.googleapis.com/css?family=Open+Sans:400,300,600|Open+Sans+Condensed:300' rel='stylesheet' type='text/css'>
+    <title>Histogram</title>
+
+    <meta name="description" content="">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no" />
+    <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+
+    <link rel="stylesheet" href="../lib/style-chosen.css">  
+    <link rel="stylesheet" href="../lib/globalStyle.css" />
+    <link rel="stylesheet" href="../lib/bootstrap.min.css">
+    <link rel="stylesheet" href="../lib/jquery-ui-1.10.4.custom.min.css"> 
+	
+    <style type="text/css">
+	
+    	.line-0 { stroke: #0d78a7; stroke-width: 2px; fill: none; }
+        .line-1 { stroke: #F5942F; stroke-width: 2px; fill: none; }
+		
+		.infolabels{
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 11px;
+            fill: white;
+			height:20px;
+			display:block;
+			float:none;
+			font-weight:bold;
+		}
+
+		.infoValues{
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 11px;
+            fill: white;
+			height:20px;
+			display:block;
+			float:none;
+		}
+
+		.overlay {
+			fill: none;
+			pointer-events: all;
+		}
+	
+		.border0 {
+			border-top: 2px solid #0d78a7;
+		}
+	
+		.border1 {
+			border-top: 2px solid #fdbb30;
+		}
+		
+    	.firstBars {
+			stroke-width:1px;
+			stroke:white;	
+			fill:#0d78a7;	
+			fill-opacity: 0.6;	
+		}
+		
+    	.secondBars {
+			stroke-width:1px;
+			stroke:white;	
+			fill:#fdbb30;	
+			fill-opacity: 0.6;	
+		}
+		
+    	.bars2 {
+			stroke-width:1px;
+			stroke:white;	
+			fill:#fdbb30;	
+			fill-opacity: 0.6;	
+		}
+	
+		.background0 { background: #3D6497; }   
+		
+		/* y-axis tick labels */
+        #graphic1 #y1Axis_mini, #graphic1 #y2Axis_mini
+		{
+            font-size: 12px;
+            fill: white;
+        }      
+		
+		/* y-axis tick labels */
+        #graphic1 #x1Axis_mini, #graphic1 #x2Axis_mini
+		{
+            font-size: 12px;
+            fill: white;
+        }
+		
+	
+        /* #graphic1 .grid .tick */		
+		#graphic1 #x1grid .tick, #graphic1 #x2grid .tick
+		{
+            stroke: white;
+            stroke-width: 1px;
+            opacity: 0.75;
+            shape-rendering: crispEdges;
+        }
+		
+		
+        #graphic1 .axis path
+		{
+            fill: none;
+            stroke: white;
+            shape-rendering: crispEdges;
+        }
+		
+		
+		/* axis ticks */
+		#graphic1 #x1Axis_mini line, #graphic1 #x2Axis_mini line,
+		#graphic1 #y1Axis_mini line, #graphic1 #y2Axis_mini line
+		{
+            fill: none;
+            stroke: white;
+            shape-rendering: crispEdges;
+        }
+    
+    </style>
+</head>
+<body>			   
+	<div class="row">
+	
+		<div class="col-sm-12" id="header">
+		
+			<div id="FixbarsDiv">				
+				<label><input type="checkbox" id="bestfitlines" name="bestfitlines" onClick="change();" checked>Show best fit lines</label>
+				<button>Roll-Up</button>
+			</div>
+		
+		</div> 
+	</div>
+
+	<div id="graphic1">
+    	<img src="fallback.png" alt="[Chart]" />
+    </div>
+	    
+    <div id="keypoints">
+        <p></p>
+    </div>
+
+   <div class="footer">        
+   </div>
+    
+
+    <script src="../lib/jquery.js" type="text/javascript"></script>
+    <script src="../lib/d3.v3.5.min.js" type="text/javascript"></script>
+    <script src="../lib/modernizr.svg.min.js" type="text/javascript"></script>
+    <script src="../lib/pym.js" type="text/javascript"></script>
+    <script src="../lib/chosen.jquery.js" type="text/javascript"></script>
+	<script src="../lib/bootstrap.min.js"></script>
+	<script src="../lib/jquery-ui-1.10.4.custom.min.js"></script>    
+	<script src="../lib/jquery.ui.labeledslider.js"></script>
+    <script src="../lib/queue.js" charset="utf-8"></script>
+    <script>
+
+		var graphic1 = $('#graphic1');
+		var keypoints = $('#keypoints');
+		var footer = $(".footer");
+		var pymChild = null;
+		var countData = [];
+		FDS = {};
+		FDS.topRankedVariable = 10;	
+		var j = 0;
+		var graphic_data;
+		var x_value;
+		var dx_value;
+		var y_mini;
+		var y1Axis_mini;
+		var y2_mini;
+		var y2Axis_mini;
+		var numEvents_sorted;
+		
+		
+			
+			
+		
+		function drawGraphic(width) {
+		
+			var threshold_md = 788;
+			var threshold_sm = dvc.optional.mobileBreakpoint; 
+		  
+		  	//set variables for chart dimensions dependent on width of #graphic1
+		    if (graphic1.width() < threshold_sm) {  
+					console.log("threshold_sm");
+		            var margin = {top: dvc.optional.margin_sm[0], right: dvc.optional.margin_sm[1], bottom: dvc.optional.margin_sm[2], left: dvc.optional.margin_sm[3]}; 
+					var chart_width = graphic1.width() - margin.left - margin.right;
+		            var height = Math.ceil((chart_width * dvc.optional.aspectRatio_sm[1]) / dvc.optional.aspectRatio_sm[0]) - margin.top - margin.bottom;
+		    } else if (graphic1.width() < threshold_md){
+					console.log("threshold_md");
+		        	var margin = {top: dvc.optional.margin_md[0], right: dvc.optional.margin_md[1], bottom: dvc.optional.margin_md[2], left: dvc.optional.margin_md[3]}; 
+					var chart_width = graphic1.width() - margin.left - margin.right;
+		            var height = Math.ceil((chart_width * dvc.optional.aspectRatio_md[1]) / dvc.optional.aspectRatio_md[0]) - margin.top - margin.bottom;
+		  	} else {
+					console.log("threshold_lg");
+		        	var margin = {top: dvc.optional.margin_lg[0], right: dvc.optional.margin_lg[1], bottom: dvc.optional.margin_lg[2], left: dvc.optional.margin_lg[3]}
+					var chart_width = graphic1.width() - margin.left - margin.right;
+		            var height = Math.ceil((chart_width * dvc.optional.aspectRatio_lg[1]) / dvc.optional.aspectRatio_lg[0]) - margin.top - margin.bottom;
+			}
+
+		    // clear out existing graphics
+		    graphic1.empty();
+			keypoints.empty();
+			footer.empty();
+			
+			var values = countData[0];			
+			var values2 = countData[1];
+				
+			var x = d3.scale.linear().domain([0, 2]).range([0, chart_width]);
+						
+			// Generate a histogram using twenty uniformly-spaced bins.
+			var data = d3.layout.histogram().bins(x.ticks(100))(values);
+			var data2 = d3.layout.histogram().bins(x.ticks(100))(values2);	
+		
+			lines = {};
+			// parse data into columns				
+			for (var column in myLines[0]) {
+			
+				if (column == 'yaxis') continue;
+
+				lines[column] = myLines.map(function(d) {
+				
+					return {
+						'yaxis': +d.yaxis,
+						'amt': +d[column]
+					};
+				});
+			}
+			
+
+					
+			var y = d3.scale.linear()
+				.domain(
+						[0, d3.max(data, function(d) {
+							return Math.ceil(d.y / 5) * 5; }) ])
+				.range([height, 0]);	
+			
+	
+						
+	
+				
+	
+				
+
+			/* START MODIFIED */
+			var color = d3.scale.ordinal().range(legendColourArray);
+			/* END MODIFIED */				
+		    
+			//create legend		
+			var legendColourArray = ["#0d78a7" , "#fdbb30" ];
+			var legend = d3.select('#graphic1').append('ul')
+						.attr('class', 'key')
+						.selectAll('g')
+						.data(dvc.essential.legendLabels)
+						.enter()
+						.append('li');
+						
+			legend.append('b').attr("class", "legendBlocks").style("background-color", function(d,i) { return legendColourArray[i]; }).style("opacity", 0.75);
+			legend.append('label').html(function(d,i) { return dvc.essential.legendLabels[i]; });						
+						
+
+			var xAxis = d3.svg.axis().scale(x).orient("bottom");
+		    var yAxis = d3.svg.axis().scale(y).orient('left');
+				
+				
+		    //gridlines
+		    var y_axis_grid = function() { return yAxis; }
+
+			var svg = d3.select("#graphic1").append("svg")
+				.attr("width", chart_width + margin.left + margin.right)
+				.attr("height", height + margin.top + margin.bottom)
+			  .append("g")
+				.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+		
+			svg.append("rect")
+				.attr("class","svgRect")
+				.attr("width", chart_width)
+				.attr("height", height);
+		
+			svg.append("g")
+				.attr("class", "x axis")
+				.attr("transform", "translate(0," + height + ")")
+				.call(xAxis);
+		
+			svg.append('g')
+				.attr('class', 'y axis')
+				.call(yAxis);
+				
+			svg.append('g')
+				.attr('class', 'y grid')
+				.call(y_axis_grid()
+					.tickSize(-chart_width, 0, 0)
+					.tickFormat('')
+				);
+				
+			// blue bars ... data1.csv
+			var barGroup = svg.selectAll(".bars")
+				.data(data)
+			  .enter()
+				.append("g")
+				.attr("class", "bars")
+				.attr("transform", function(d) { return "translate(" + x(d.x) + "," + y(d.y) + ")"; });
+								
+			barGroup.append("rect")
+				.attr("x", 1)
+				.attr("width", x(data[0].dx) - 1)
+				.attr("class", "firstBars")
+				.attr("id", function(d,i) { return "firstBar"+i; })
+				.attr("height", function(d) { return height - y(d.y); });
+				
+				
+					
+				
+			// orange bars ... data2.csv
+			var barGroup2 = svg.selectAll(".bars2")
+				.data(data2)
+			  .enter()
+				.append("g")
+				.attr("class", "bars2")
+				.attr("transform", function(d) { return "translate(" + x(d.x) + "," + y(d.y) + ")"; });
+				
+			barGroup2.append("rect")
+				.attr("x", 1)
+				.attr("width", x(data2[0].dx) - 1)
+				.attr("class", "secondBars")
+				.attr("id", function(d,i) { return "secondBar"+i; })
+				.attr("height", function(d) { return height - y(d.y); });				
+				
+				
+
+			
+		    var line = d3.svg.line()
+		        .x(function(d) { return x(d.yaxis); })
+		        .y(function(d) { return y(d.amt); });
+
+
+				
+			//create lines 		
+			svg.append('g').selectAll('path')
+				.data(d3.entries(lines))
+				.enter()
+				.append('path')
+					.attr('class', function(d, i) { return 'line line-' + i; })
+					.attr('d', function(d) { return line(d.value); });				
+			
+			
+			
+				
+			var barMasksGroup = svg.selectAll(".barMasksGroups")
+				.data(data)
+			  .enter()
+				.append("g")
+				.attr("class", "barMasksGroups")
+				.attr("id", function(d ,i) { return "barMasksGroup" + i; })
+				.attr("transform", function(d) { return "translate(" + x(d.x) + "," + y(y.domain()[1]) + ")"; });		
+
+							
+							
+			var infoRect_dimensions = { width: 200, height: 300 };	
+			var margin_mini = { top: 45, right: 15, bottom: 15, left: 55 }; 
+			var graphType = "1x";
+			
+			barMasksGroup.append("rect")
+				.attr("x", 0)
+				.attr("width", x(data[0].dx) +2)
+				.attr("class", "BarMasks")
+				.attr("id", function(d,i) { return "BarMask"+i; })
+				.attr("height", function(d) { return height; })
+				.style("opacity" , "0.0")	
+				.on("mouseover", function(d,i){
+					d3.select("#" + this.id).style("opacity" , "0.10");	
+					var id = this.id.replace("BarMask" , '');
+					
+					// store current bin start and bin end ... 
+					x_value = d.x;
+					dx_value = x_value + d.dx;	
+
+					d3.select("#x1Axis_mini").remove();
+					d3.select("#x1grid").remove();
+					d3.select("#y1Axis_mini").remove();
+					d3.selectAll(".countBars1").remove();
+						
+					d3.select("#x2Axis_mini").remove();
+					d3.select("#x2grid").remove();
+					d3.select("#y2Axis_mini").remove();
+					d3.selectAll(".countBars2").remove();	
+									
+					if ( d.y > 0 || data2[id].y > 0 ) {
+									
+						if ( d.y > 0 && data2[id].y > 0 ) {
+						
+							graphType = "2x";
+							infoRect_dimensions = { width: 450, height: 300 };
+							d3.select("#infoRect").attr("width" , infoRect_dimensions.width);
+														
+							determine_numEvents(graphic_data[0]);
+							determine_numEvents2();
+							barColor1 = "#0d78a7";
+							barColor2 = "#fdbb30";
+							d3.select("#count_infoTextValue").text((parseFloat(d.y)).toFixed(0) );
+							d3.select("#count2_infoTextValue").text((parseFloat(data2[id].y)).toFixed(0) );							
+							
+							d3.select("#bestFit1_infoTextValue").text( (lines['trend1'][i].amt).toFixed(2) );
+							d3.select("#bestFit2_infoTextValue").text( (lines['trend2'][i].amt).toFixed(2) );
+							
+						} // end outer if ...	
+						
+						else {
+							graphType = "1x";
+							infoRect_dimensions = { width: 200, height: 300 };
+							d3.select("#infoRect").attr("width" , infoRect_dimensions.width)	
+							
+							if ( d.y > 0 ) {
+							
+								determine_numEvents(graphic_data[0]);
+								nullify_numEvents2();
+								barColor1 = "#0d78a7";
+								d3.select("#count_infoTextValue").text((parseFloat(d.y)).toFixed(0) );
+								d3.select("#bestFit1_infoTextValue").text( (lines['trend1'][i].amt).toFixed(2) );
+									
+							} // end inner  if ...
+							else {
+							
+								determine_numEvents(graphic_data[1]);
+								nullify_numEvents2();						
+								barColor1 = "#fdbb30";
+								d3.select("#count_infoTextValue").text((parseFloat(data2[id].y)).toFixed(0) );
+								d3.select("#bestFit1_infoTextValue").text( (lines['trend2'][i].amt).toFixed(2) );
+								
+							} // end inner  else ...	
+						
+						} // end outer else ...	
+						
+						if ( graphType == "1x" ) {
+						
+							draw_leftMiniGraph_Axes(1);
+					
+						}// end if ...
+						
+						else {
+						
+							draw_leftMiniGraph_Axes(2);
+							
+							y2_mini = d3.scale.ordinal().rangeRoundBands([margin_mini.top, infoRect_dimensions.height - margin_mini.top - margin_mini.bottom], .1)						
+							y2_mini.domain(numEvents2_sorted_filtered.map(function(d) { return d.key; }));										
+							y2Axis_mini = d3.svg.axis().scale(y2_mini).orient('left');	
+							
+						}// end else ...
+						
+						x_mini.domain([0,10]);		
+						var x1Axis_mini = d3.svg.axis().scale(x_mini).orient('bottom');
+
+						//create mini x axis,
+						d3.select("#infoBox").append('g')
+							.attr('class', 'x axis')
+							.attr('id', 'x1Axis_mini')
+							.attr('transform', function(d){ return 'translate(' + margin_mini.left + ',' + (infoRect_dimensions.height - margin_mini.bottom) + ')'; })
+							.call(x1Axis_mini);	
+							
+						//create mini y axis,
+						d3.select("#infoBox").append('g')
+							.attr('class', 'y axis')
+							.attr('id', 'y1Axis_mini')
+							.attr('transform', function(d){ return 'translate(' + margin_mini.left + ',' + (margin_mini.top) + ')'; })
+							.call(y1Axis_mini);	
+							
+						//gridlines
+						var x1Axis_mini_grid;
+						var x1Axis_mini_grid = function() { return x1Axis_mini; }
+						
+						// append group to attach x axis and grid to
+						d3.select("#infoBox").append('g')
+							.attr('class', 'x grid')
+							.attr('id', 'x1grid')
+							.call(x1Axis_mini_grid()
+								.tickSize(infoRect_dimensions.height - 105, 0, 0)
+								.tickFormat('')
+							);
+							
+							
+						d3.select("#x1grid").attr("transform" , "translate(" + (margin_mini.left) + "," + (margin_mini.top+45) + ")")
+																	
+						if ( graphType == "1x" ) {
+						
+							draw_histogram1_division();
+						}
+						
+						else {
+						
+							x2_mini.domain([0,10]);		
+							var x2Axis_mini = d3.svg.axis().scale(x2_mini).orient('bottom');	
+
+							//create mini x axis,
+							d3.select("#infoBox").append('g')
+								.attr('class', 'x axis')
+								.attr('id', 'x2Axis_mini')
+								.attr('transform', function(d){ return 'translate(' + ((infoRect_dimensions.width/2)+margin_mini.left) + ',' + (infoRect_dimensions.height - margin_mini.bottom) + ')'; })
+								.call(x2Axis_mini);	
+						
+							var x2Axis_mini_grid;
+							var x2Axis_mini_grid = function() { return x2Axis_mini; }
+
+							//create mini y2 axis,
+							d3.select("#infoBox").append('g')
+								.attr('class', 'y axis')
+								.attr('id', 'y2Axis_mini')
+								.attr('transform', function(d){ return 'translate(' + ((infoRect_dimensions.width/2)+margin_mini.left) + ',' + (margin_mini.top) + ')'; })
+								.call(y2Axis_mini);
+							
+							// append group to attach x axis and grid to
+							d3.select("#infoBox").append('g')
+								.attr('class', 'x grid')
+								.attr('id', 'x2grid')
+								.call(x2Axis_mini_grid()
+									.tickSize(infoRect_dimensions.height - 105, 0, 0)
+									.tickFormat('')
+								);	
+
+							d3.select("#x2grid").attr("transform" , "translate(" + ((infoRect_dimensions.width/2)+margin_mini.left) + "," + (margin_mini.top+45) + ")")
+							
+							draw_histogram1_division();
+							draw_histogram2_division();				
+							
+						}// end inner else ...
+									
+						focus.attr("transform", "translate(" + (x(d.x)) + "," + (d3.mouse(this)[1]) + ")").style("display", "inline");					
+						d3.select("#xAxis_infoTextValue").text((d.x).toFixed(2) + " to " + (parseFloat((d.x) + parseFloat(d.dx))) .toFixed(2) );
+						
+					}// end outer if ... 
+									
+					return;
+				})
+				.on("mouseout", function(d,i){
+					d3.select("#" + this.id).style("opacity" ,  "0.00");
+					focus.style("display", "none");
+					return;
+				});			
+					
+				
+			// create tooltip components ...
+			var focus = svg.append("g")
+				.attr("class", "focus")
+				.style("display", "none")
+				.style("pointer-events" , "all");			
+								
+			var infoRect = focus.append("g")
+				.attr("class", "infoBoxes" )
+				.attr("id", "infoBox" );
+
+			infoRect.append("rect")
+				.attr("id" , "infoRect" )
+				.attr("width" , infoRect_dimensions.width )
+				.attr("height" , infoRect_dimensions.height )
+				.style("fill" , "white")
+				/* .style("fill" , "#707070") */
+				.style("fill" , "#383838")
+				.style("opacity" , "0.80")
+				.attr("x" , 15)
+				.attr("y" , 15)
+
+			infoRect.append("text")
+				.attr("class" , "infolabels")
+				.attr("id" , "date_infoTextString")
+				.attr("x", 30 )
+				.attr("y", 40 )
+				.attr("dy", ".35em")
+				.style("font-size" , "18px")
+				.style("font-weight" , "bold");
+
+			infoRect.append("text")
+				.attr("class" , "infolabels")
+				.attr("id" , "xAxis_infoTextString")
+				.attr("x", 30 )
+				.attr("y", 30 )
+				.attr("dy", ".35em")
+				.text("Interval:");
+
+									infoRect.append("text")
+										.attr("class" , "infoValues")
+										.attr("id" , "xAxis_infoTextValue")
+										.attr("x", 100 )
+										.attr("y", 30 )
+										.attr("dy", ".35em");
+
+			infoRect.append("text")
+				.attr("class" , "infolabels")
+				.attr("id" , "count_infoTextString")
+				.attr("x", 30 )
+				.attr("y", 50 )
+				.attr("dy", ".35em")
+				.text("Total count (all data): ");
+
+									infoRect.append("text")
+										.attr("class" , "infoValues")
+										.attr("id" , "count_infoTextValue")
+										.attr("x", 150 )
+										.attr("y", 50 )
+										.attr("dy", ".35em");	
+
+			infoRect.append("text")
+				.attr("class" , "infolabels")
+				.attr("id" , "bestFit1_infoTextString")
+				.attr("x", 30 )
+				.attr("y", 70 )
+				.attr("dy", ".35em")
+				.text("Best-fit: ");
+
+									infoRect.append("text")
+										.attr("class" , "infoValues")
+										.attr("id" , "bestFit1_infoTextValue")
+										.attr("x", 150 )
+										.attr("y", 70 )
+										.attr("dy", ".35em");	
+
+			infoRect.append("text")
+				.attr("class" , "infolabels")
+				.attr("id" , "count2_infoTextString")
+				.attr("x", ((infoRect_dimensions.width)+margin_mini.left ))
+				.attr("y", 50 )
+				.attr("dy", ".35em")
+				.text("Total count (all data): ");
+
+									infoRect.append("text")
+										.attr("class" , "infoValues")
+										.attr("id" , "count2_infoTextValue")
+										.attr("x", ((infoRect_dimensions.width)+margin_mini.left + 125 ))
+										.attr("y", 50 )
+										.attr("dy", ".35em");	
+
+			infoRect.append("text")
+				.attr("class" , "infolabels")
+				.attr("id" , "bestFit2_infoTextString")
+				.attr("x", ((infoRect_dimensions.width)+margin_mini.left ) )
+				.attr("y", 70 )
+				.attr("dy", ".35em")
+				.text("Best-fit: ");
+
+									infoRect.append("text")
+										.attr("class" , "infoValues")
+										.attr("id" , "bestFit2_infoTextValue")
+										.attr("x", ((infoRect_dimensions.width)+margin_mini.left + 125 ))
+										.attr("y", 70 )
+										.attr("dy", ".35em");	
+										
+
+		
+										
+			function mousemove() {
+			
+				console.log("mousemove")
+				console.log(graphic_data)
+				
+				var x0 = x.invert(d3.mouse(this)[0]),
+					i = bisectDate(graphic_data, x0, 1),
+					d0 = graphic_data[i - 1],
+					d1 = graphic_data[i],
+					d = x0 - d0.x > d1.x - x0 ? d1 : d0;
+								
+				focus.attr("transform", "translate(" + (x(d.x)) + "," + (d3.mouse(this)[1]) + ")");
+				
+				return;
+			
+			} // end function mousemove() 
+			
+			
+			
+			function draw_leftMiniGraph_Axes(denom){
+
+				x_mini = d3.scale.linear().range([0 , infoRect_dimensions.width/denom - margin_mini.left - margin_mini.right])
+				x2_mini = d3.scale.linear().range([0 , infoRect_dimensions.width/denom - margin_mini.left - margin_mini.right])
+											
+				y_mini = d3.scale.ordinal().rangeRoundBands([margin_mini.top, infoRect_dimensions.height - margin_mini.top - margin_mini.bottom], .1)						
+				y_mini.domain(numEvents_sorted_filtered.map(function(d) { return d.key; }));										
+				y1Axis_mini = d3.svg.axis().scale(y_mini).orient('left');
+
+				return;
+			
+			}// end function draw_leftMiniGraph_Axes(denom)
+
+
+		
+			function determine_numEvents(data){
+
+				var graphic_data_Filtered = data/* graphic_data[0] */
+					.filter(function(d,i) { return d.Bin >= x_value; })
+					.filter(function(d,i) { return d.Bin < dx_value; });
+		
+				// nest/aggregate filtered FLIGHT data by month
+				numEvents = d3.nest()
+					.key(function(d) { return d['Customer ICAO']; })
+					.rollup(function(leaves) { return leaves.length; })
+					.entries(graphic_data_Filtered);
+					
+				numEvents_sorted = numEvents.sort( function(x, y){ return d3.descending(x.values, y.values); });
+				numEvents_sorted_filtered = numEvents_sorted.filter(function(d,i) { return i < (FDS.topRankedVariable); });								
+	
+				return;
+				
+			}// function determine_numEvents()	
+			
+			function determine_numEvents2(){
+													
+				var graphic_data2_Filtered = graphic_data[1]
+					.filter(function(d,i) { return d.Bin >= x_value; })
+					.filter(function(d,i) { return d.Bin < dx_value; });
+		
+				// nest/aggregate filtered FLIGHT data by month
+				numEvents2 = d3.nest()
+					.key(function(d) { return d['Customer ICAO']; })
+					.rollup(function(leaves) { return leaves.length; })
+					.entries(graphic_data2_Filtered);
+					
+				var numEvents2_sorted = numEvents2.sort( function(x, y){ return d3.descending(x.values, y.values); });
+				numEvents2_sorted_filtered = numEvents2_sorted.filter(function(d,i) { return i < (FDS.topRankedVariable); });
+				
+				return;
+			}
+
+
+
+
+			function draw_histogram1_division(){
+			
+				d3.select("#infoBox").append('g').attr("class","countBars1").selectAll('rect')
+						.data(numEvents)
+						.enter()
+						.append('rect')
+						.attr('class', function(d, i) { return 'countBars1'; })
+						.attr("width", function(d, i) { return i < (10) ? 0 + Math.abs(x_mini(d.values) - x_mini(0)) : ''; })
+						.attr("x", function(d,i) { return i < (10) ? x_mini(0) + margin_mini.left : ''; })
+						.attr("y", function(d,i) { return i < (10) ? y_mini(d.key)+margin_mini.top : ''; })
+						.attr("height", function(d,i) { return i < (10) ? y_mini.rangeBand() : '';  })
+						.style("opacity" , "0.90")
+						.style("fill" , barColor1);
+			
+				return;
+				
+			}// end function draw_histogram1
+			
+			
+
+
+
+			function draw_histogram2_division(){
+			
+				d3.select("#infoBox").append('g').attr("class","countBars2").selectAll('rect')
+						.data(numEvents2)
+						.enter()
+						.append('rect')
+						.attr('class', function(d, i) { return 'countBars2'; })
+						.attr("width", function(d, i) { return i < (10) ? 0 + Math.abs(x2_mini(d.values) - x2_mini(0)) : ''; })
+						.attr("x", function(d,i) { return i < (10) ? x2_mini(0) + ((infoRect_dimensions.width/2)+margin_mini.left) : ''; })
+						.attr("y", function(d,i) { return i < (10) ? y2_mini(d.key)+margin_mini.top : ''; })
+						.attr("height", function(d,i) { return i < (10) ? y2_mini.rangeBand() : '';  })
+						.style("opacity" , "0.90")
+						.style("fill" , barColor2);
+			
+				return;
+				
+			}// end function draw_histogram2
+			
+			
+
+			function nullify_numEvents2(){
+								
+				numEvents2 = null;
+				numEvents2_sorted = null;	
+				numEvents2_sorted_filtered = null;	
+				
+				return;
+
+			}// end function nullify_numEvents2() 
+			
+				
+			//use pym to calculate chart dimensions	
+		    if (pymChild) { pymChild.sendHeight(); }
+		}	
+
+		//check whether browser can cope with svg	
+		if (Modernizr.svg) {
+		   //load config 
+			d3.json("config.json", function(error, config) {
+			
+				dvc = config;
+					
+				countData = [];
+				dvc.fileReadCount = 0;
+				graphic_data = {};
+				
+				//load chart data
+				d3.csv("lines.csv", function(error, data) { myLines = data; })				
+			
+				dvc.essential.graphic_data_url.forEach(function(d,i){
+				
+					var j = i;					
+					var objName = d;
+					graphic_data_url = objName + ".csv";
+										
+					countData[j] = [];
+					
+					//load chart data
+					d3.csv(graphic_data_url, function(error, data) {
+						graphic_data_interim = data;
+						graphic_data[j] = data;
+						
+						graphic_data_interim.forEach(function(d,i) { 
+							countData[j].push(+d.Bin);
+						});
+						
+						console.log(countData)
+													
+						dvc.fileReadCount++;
+						if ( dvc.fileReadCount == dvc.essential.graphic_data_url.length ) { pymChild = new pym.Child({renderCallback: drawGraphic}); }
+					})
+					
+				})
+				
+				
+			})
+			
+
+		} else {
+			 //use pym to create iframe containing fallback image (which is set as default)
+			 pymChild = new pym.Child();
+			if (pymChild) {
+		        pymChild.sendHeight();
+		    }
+		}
+
+				
+		function change() {
+		
+			if (bestfitlines.checked == true)
+			{
+				d3.selectAll(".line").style("display" , "inline");
+				$("#Fixbars").prop("checked" , false);
+			}
+			else {
+				d3.selectAll(".line").style("display" , "none");
+				$("#Fixbars").prop("checked" , true);
+			}	
+		
+			return;
+		
+		} // end function change()
+		
+		
+    </script>
+</body>
+</html>
